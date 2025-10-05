@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ATM Transaction Management</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f2f5f7; padding: 20px; }
+        h1 { text-align: center; margin-bottom: 30px; color: #007BFF; }
+        .atm-balance { background-color: #fff; padding: 20px; border-radius: 12px; font-weight: bold; font-size: 1.2rem; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin-bottom: 10px; text-align: center; }
+        .demo-transaction { margin-bottom: 30px; }
+        form { background-color: #fff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        table { background-color: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        thead { background-color: #007BFF; color: #fff; }
+        .btn-primary, .btn-filter { margin-right: 5px; margin-bottom: 5px; }
+        .deposit { background-color: #d4edda !important; } /* green */
+        .withdraw { background-color: #f8d7da !important; } /* red */
+        .filter-section { margin-bottom: 15px; }
+        .btn-filter.active { font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>ATM Transaction Management</h1>
+
+    <!-- Current ATM Cash Section -->
+    <div class="atm-balance">
+        Current ATM Cash: <span id="atmBalance">Loading...</span>
+    </div>
+
+    <!-- DEMO Transaction Heading -->
+    <div class="demo-transaction text-center">
+        <h5>DEMO Transaction</h5>
+    </div>
+
+    <!-- Transaction Form -->
+    <form id="transactionForm">
+        <div class="mb-3">
+            <label for="accountNumber" class="form-label">Account Number</label>
+            <input type="text" id="accountNumber" class="form-control" required>
+        </div>
+
+        <div class="mb-3">
+            <label for="transactionType" class="form-label">Transaction Type</label>
+            <select id="transactionType" class="form-select" required>
+                <option value="DEPOSIT">DEPOSIT</option>
+                <option value="WITHDRAW">WITHDRAW</option>
+            </select>
+        </div>
+
+        <div class="mb-3">
+            <label for="amount" class="form-label">Amount</label>
+            <input type="number" id="amount" class="form-control" required>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Submit Transaction</button>
+    </form>
+
+    <!-- Filters Section -->
+    <div class="filter-section">
+        <button class="btn btn-outline-primary btn-filter active" onclick="filterType('ALL', this)">All</button>
+        <button class="btn btn-outline-success btn-filter" onclick="filterType('DEPOSIT', this)">Deposit</button>
+        <button class="btn btn-outline-danger btn-filter" onclick="filterType('WITHDRAW', this)">Withdraw</button>
+        <input type="number" id="amountFilter" class="form-control d-inline-block" placeholder="Amount greater than..." style="width: 200px;" oninput="applyAmountFilter()">
+    </div>
+
+    <!-- Transactions Table -->
+    <table class="table table-hover">
+        <thead>
+        <tr>
+            <th>ID</th>
+            <th>Account Number</th>
+            <th>Type</th>
+            <th>Amount</th>
+            <th>ATM Cash Balance</th>
+        </tr>
+        </thead>
+        <tbody id="transactionTableBody"></tbody>
+    </table>
+</div>
+
+<!-- Bootstrap JS Bundle -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    const apiBase = "http://localhost:8080/api/transactions";
+    let allTransactions = [];
+    let currentFilterType = 'ALL';
+    let currentAmountFilter = 0;
+
+    document.addEventListener("DOMContentLoaded", () => {
+        loadTransactions();
+        loadAtmBalance();
+    });
+
+    const form = document.getElementById("transactionForm");
+    form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        createTransaction();
+    });
+
+    function loadTransactions() {
+        fetch(apiBase)
+            .then(res => res.json())
+            .then(data => {
+                allTransactions = data;
+                displayTransactions();
+            });
+    }
+
+    function loadAtmBalance() {
+        fetch(`${apiBase}/atm-balance`)
+            .then(res => res.text())
+            .then(balance => document.getElementById("atmBalance").innerText = balance);
+    }
+
+    function createTransaction() {
+        const transaction = {
+            accountNumber: document.getElementById("accountNumber").value,
+            transactionType: document.getElementById("transactionType").value,
+            amount: parseFloat(document.getElementById("amount").value)
+        };
+
+        fetch(apiBase, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(transaction)
+        })
+        .then(res => res.json())
+        .then(() => {
+            form.reset();
+            loadTransactions();
+            loadAtmBalance();
+        });
+    }
+
+    // Display transactions with type coloring
+    function displayTransactions() {
+        const tbody = document.getElementById("transactionTableBody");
+        tbody.innerHTML = "";
+
+        let filtered = allTransactions;
+
+        // Apply type filter
+        if(currentFilterType !== 'ALL'){
+            filtered = filtered.filter(tx => tx.transactionType === currentFilterType);
+        }
+
+        // Apply amount filter
+        filtered = filtered.filter(tx => tx.amount > currentAmountFilter);
+
+        filtered.forEach(tx => {
+            const row = document.createElement("tr");
+            row.className = tx.transactionType === "DEPOSIT" ? "deposit" : "withdraw";
+            row.innerHTML = `
+                <td>${tx.id}</td>
+                <td>${tx.accountNumber}</td>
+                <td>${tx.transactionType}</td>
+                <td>${tx.amount}</td>
+                <td>${tx.atmCashBalance}</td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
+
+    // Filter by type
+    function filterType(type, button) {
+        currentFilterType = type;
+        // Update active button style
+        document.querySelectorAll('.btn-filter').forEach(btn => btn.classList.remove('active'));
+        button.classList.add('active');
+        displayTransactions();
+    }
+
+    // Filter by amount input
+    function applyAmountFilter() {
+        const amt = parseFloat(document.getElementById("amountFilter").value);
+        currentAmountFilter = isNaN(amt) ? 0 : amt;
+        displayTransactions();
+    }
+</script>
+
+</body>
+</html>
